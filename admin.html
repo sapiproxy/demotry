@@ -75,10 +75,12 @@
     background:radial-gradient(circle at 35% 35%, #7ec850, #1e7a1e); }
   .nums button:hover { transform:scale(1.15); filter:brightness(1.3); }
   .nums button.active { background:radial-gradient(circle at 35% 35%, #ff6b6b, #a00000);
-    box-shadow:0 0 12px #ff0000; }
+    box-shadow:0 0 120; }
   .info { color:#ffd700; font-size:14px; margin-top:10px; min-height:20px; }
 </style>
-
+<!-- Firebase SDK (compat version — works with normal script) -->
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
 </head>
 <body>
 
@@ -125,9 +127,23 @@
 const ADMIN_USER='admin';
 const ADMIN_PASS='admin123';
 
+// ===== YOUR FIREBASE CONFIG =====
+const firebaseConfig = {
+  apiKey: "AIzaSyChx7rQNNVsmd5QCof-mXZU6OT5KoZrFDg",
+  authDomain: "funtarget.firebaseapp.com",
+  databaseURL: "https://funtarget-default-rtdb.asia-southeast1.firebasedatabase.app",
+  projectId: "funtarget",
+  storageBucket: "funtarget.firebasestorage.app",
+  messagingSenderId: "905081850251",
+  appId: "1:905081850251:web:05a811f49d7f420b09078e"
+};
+
+firebase.initializeApp(firebaseConfig);
+const db=firebase.database();
+
 const params=new URLSearchParams(location.search);
-const TOPIC=params.get('topic')||'funtarget'+Math.floor(Math.random()*100000);
-const NTFY='https://ntfy.sh/'+TOPIC;
+const TOPIC=params.get('topic')||'default';
+const room=db.ref('rooms/'+TOPIC);   // same topic = same room on all PCs
 
 const order=[1,2,3,4,5,6,7,8,9,0];
 const wheelEl=document.getElementById('wheel');
@@ -155,16 +171,10 @@ for(let n=0;n<=9;n++){
 let loggedIn=false, spinning=false, rotation=0, forced=null;
 let history=[];
 let timeLeft=60, timerInterval=null;
-let spinId=0;
 
-// ✅ "Cache: no" — prevents ntfy replaying old messages to reconnecting pages
-function send(obj){
-  obj.id=Date.now();
-  fetch(NTFY,{
-    method:'POST',
-    headers:{ 'Cache':'no' },
-    body:JSON.stringify(obj)
-  }).catch(()=>{});
+// Write state to Firebase — player pages receive it instantly
+function update(data){
+  room.update(data).catch(err=>console.error('Firebase write error:',err));
 }
 
 function login(){
@@ -175,7 +185,7 @@ function login(){
     document.getElementById('gameScreen').style.display='flex';
     history=[];
     document.getElementById('last10').textContent='- - - - - - - - - -';
-    send({type:'running'});
+    update({ state:'running', timer:'60s', winner:'-', history:'- - - - - - - - - -' });
     startTimer();
   } else {
     document.getElementById('err').textContent='Wrong username or password!';
@@ -197,11 +207,10 @@ function startTimer(){
 function updateTimerDisplay(){
   const t=document.getElementById('timer');
   t.textContent='Next spin in: '+timeLeft+'s';
-  // 🔴 turn red & blink when 10 seconds or less
   if(timeLeft<=10){ t.classList.add('urgent'); }
   else { t.classList.remove('urgent'); }
-  // ✅ SYNC: broadcast countdown to player page every second
-  send({type:'timer', timeLeft});
+  // ✅ SYNC: countdown broadcast to player pages every second
+  update({ timer: timeLeft+'s' });
 }
 
 function logout(){
@@ -215,7 +224,7 @@ function logout(){
   document.getElementById('last10').textContent='- - - - - - - - - -';
   document.getElementById('winner').textContent='-';
   document.getElementById('info').textContent='Next spin: RANDOM';
-  send({type:'ended'});
+  update({ state:'ended', timer:'' });
   document.getElementById('gameScreen').style.display='none';
   document.getElementById('loginScreen').style.display='flex';
   document.getElementById('err').textContent='';
@@ -230,6 +239,7 @@ function spin(){
   document.getElementById('spinBtn').disabled=true;
   document.getElementById('winner').textContent='-';
   document.getElementById('timer').textContent='SPINNING...';
+  update({ state:'spinning', timer:'SPINNING...' });
 
   const result=(forced!==null)?forced:Math.floor(Math.random()*10);
   forced=null;
@@ -243,15 +253,14 @@ function spin(){
   rotation+=1440+add;
   wheelEl.style.transform=`rotate(${rotation}deg)`;
 
-  spinId=Date.now();
-  send({type:'spin', result, spinId});
+  update({ state:'spin', result:result, spinId:Date.now() });
 
   setTimeout(()=>{
     document.getElementById('winner').textContent=result;
     history.unshift(result);
     if(history.length>10) history.pop();
     document.getElementById('last10').textContent=history.join(' ');
-    send({type:'history', history});
+    update({ winner:String(result), history:history.join(' '), state:'running', timer:timeLeft+'s' });
     spinning=false;
     document.getElementById('spinBtn').disabled=false;
     startTimer();
@@ -259,28 +268,4 @@ function spin(){
 }
 </script>
 </body>
- <script type="module">
-  // Import the functions you need from the SDKs you need
-  import { initializeApp } from "https://www.gstatic.com/firebasejs/12.19.0/firebase-app.js";
-  import { getAnalytics } from "https://www.gstatic.com/firebasejs/12.19.0/firebase-analytics.js";
-  // TODO: Add SDKs for Firebase products that you want to use
-  // https://firebase.google.com/docs/web/setup#available-libraries
-
-  // Your web app's Firebase configuration
-  // For Firebase JS SDK v7.20.0 and later, measurementId is optional
-  const firebaseConfig = {
-    apiKey: "AIzaSyChx7rQNNVsmd5QCof-mXZU6OT5KoZrFDg",
-    authDomain: "funtarget.firebaseapp.com",
-    databaseURL: "https://funtarget-default-rtdb.asia-southeast1.firebasedatabase.app",
-    projectId: "funtarget",
-    storageBucket: "funtarget.firebasestorage.app",
-    messagingSenderId: "905081850251",
-    appId: "1:905081850251:web:05a811f49d7f420b09078e",
-    measurementId: "G-R28H8KW2J4"
-  };
-
-  // Initialize Firebase
-  const app = initializeApp(firebaseConfig);
-  const analytics = getAnalytics(app);
-</script>
 </html>
