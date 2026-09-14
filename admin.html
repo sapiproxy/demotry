@@ -194,7 +194,7 @@ function login(){
 
 function startTimer(){
   clearInterval(timerInterval);
-  timeLeft=120;
+  timeLeft=60;
   updateTimerDisplay();
   timerInterval=setInterval(()=>{
     if(spinning) return;
@@ -264,7 +264,7 @@ function spin(){
     spinning=false;
     document.getElementById('spinBtn').disabled=false;
     startTimer();
-  },4200);
+  },10200);
 }
 </script>
 </body>
